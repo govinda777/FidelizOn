@@ -1,0 +1,27 @@
+{
+  "name": "fidelizon-monorepo",
+  "version": "2.0.0",
+  "private": true,
+  "description": "Monorepo da plataforma FidelizOn v2.0 (SaaS B2B2C Web3)",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "npm run dev --workspace=@fidelizon/web",
+    "build": "npm run build --workspaces --if-present",
+    "lint": "npm run lint --workspaces --if-present",
+    "test": "npm run test --workspaces --if-present"
+  },
+  "keywords": [
+    "loyalty",
+    "web3",
+    "thirdweb",
+    "sanity",
+    "pwa",
+    "erc4337",
+    "github-pages"
+  ],
+  "author": "FidelizOn Team",
+  "license": "Apache-2.0"
+}
