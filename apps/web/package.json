@@ -8,6 +8,9 @@
     "build": "tsc && vite build",
     "preview": "vite preview",
     "test": "vitest run",
+    "test:unit": "vitest run src/utils",
+    "test:integration": "vitest run src/__tests__/integration",
+    "test:e2e": "npm run test:integration",
     "test:watch": "vitest"
   },
   "dependencies": {

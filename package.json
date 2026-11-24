@@ -11,7 +11,10 @@
     "dev": "npm run dev --workspace=@fidelizon/web",
     "build": "npm run build --workspaces --if-present",
     "lint": "npm run lint --workspaces --if-present",
-    "test": "npm run test --workspaces --if-present"
+    "test": "npm run test --workspaces --if-present",
+    "test:unit": "npm run test:unit --workspaces --if-present",
+    "test:e2e": "npm run test:e2e --workspaces --if-present",
+    "prepare": "husky"
   },
   "keywords": [
     "loyalty",
@@ -23,5 +26,8 @@
     "github-pages"
   ],
   "author": "FidelizOn Team",
-  "license": "Apache-2.0"
+  "license": "Apache-2.0",
+  "devDependencies": {
+    "husky": "^9.1.7"
+  }
 }
