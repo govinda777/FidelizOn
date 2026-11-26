@@ -84,8 +84,8 @@ export const SEED_TENANT: Tenant = {
     cooldownSeconds: 60,
   },
   web3: {
-    chainId: 8453, // Base Mainnet (ou 84532 Base Sepolia)
-    loyaltyContractAddress: '0x1234567890123456789012345678901234567890',
+    chainId: 84532, // Base Sepolia
+    loyaltyContractAddress: '0x6883FD842E0b7901873a6a00042B602991a6bd2E',
     ownerWallet: '0xaB12Cd34Ef567890123456789012345678901234',
   },
   enabledModules: {

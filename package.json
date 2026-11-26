@@ -14,6 +14,8 @@
     "test": "npm run test --workspaces --if-present",
     "test:unit": "npm run test:unit --workspaces --if-present",
     "test:e2e": "npm run test:e2e --workspaces --if-present",
+    "create-wallet": "tsx scripts/create-wallet.ts",
+    "deploy:contract": "tsx scripts/deploy-contract.ts",
     "seed:sanity": "npx sanity datasets import ./packages/sanity-schemas/data/seed-cafeteria-aroma.ndjson production --project=8fgufitv --replace",
     "prepare": "husky"
   },
@@ -29,6 +31,8 @@
   "author": "FidelizOn Team",
   "license": "Apache-2.0",
   "devDependencies": {
-    "husky": "^9.1.7"
+    "@types/node": "^26.6.10",
+    "husky": "^9.1.7",
+    "tsx": "^4.23.15"
   }
 }
