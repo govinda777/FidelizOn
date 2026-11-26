@@ -26,6 +26,9 @@ export interface CartItem {
 }
 
 export const SeedStoreIntegrationDemo: React.FC = () => {
+  // Controle de Visualização por Papel (Role)
+  const [activeRole, setActiveRole] = useState<'all' | 'customer' | 'cashier'>('all');
+
   // Estado do Cliente
   const [customerWallet] = useState('0x9876543210fedcba9876543210fedcba98765432');
   const [loyaltyState, setLoyaltyState] = useState<CustomerLoyaltyState>({
@@ -146,72 +149,139 @@ export const SeedStoreIntegrationDemo: React.FC = () => {
 
   return (
     <div data-testid="seed-store-demo" className="p-4 space-y-6">
+      {/* Seletor de Papéis (Roles): Caixa vs. Cliente */}
+      <div className="bg-slate-100 p-2 rounded-xl flex items-center justify-between text-xs font-medium border border-slate-200">
+        <span className="text-slate-500 font-semibold px-2">Perfil:</span>
+        <div className="flex gap-1">
+          <button
+            type="button"
+            data-testid="role-tab-customer"
+            onClick={() => setActiveRole('customer')}
+            className={`px-3 py-1.5 rounded-lg transition-all ${
+              activeRole === 'customer'
+                ? 'bg-emerald-600 text-white shadow-sm font-semibold'
+                : 'text-slate-600 hover:bg-slate-200'
+            }`}
+          >
+            👤 Visão Cliente
+          </button>
+          <button
+            type="button"
+            data-testid="role-tab-cashier"
+            onClick={() => setActiveRole('cashier')}
+            className={`px-3 py-1.5 rounded-lg transition-all ${
+              activeRole === 'cashier'
+                ? 'bg-blue-600 text-white shadow-sm font-semibold'
+                : 'text-slate-600 hover:bg-slate-200'
+            }`}
+          >
+            💼 Visão Caixa (Operador)
+          </button>
+          <button
+            type="button"
+            data-testid="role-tab-all"
+            onClick={() => setActiveRole('all')}
+            className={`px-3 py-1.5 rounded-lg transition-all ${
+              activeRole === 'all'
+                ? 'bg-slate-800 text-white shadow-sm font-semibold'
+                : 'text-slate-600 hover:bg-slate-200'
+            }`}
+          >
+            🔄 Ambos
+          </button>
+        </div>
+      </div>
+
       {/* Header da Loja Modelo */}
       <div className="border-b pb-4">
-        <h1 data-testid="tenant-name" className="text-2xl font-bold">
-          {SEED_TENANT.name}
-        </h1>
+        <div className="flex items-center justify-between">
+          <h1 data-testid="tenant-name" className="text-2xl font-bold">
+            {SEED_TENANT.name}
+          </h1>
+          <span className="text-xs px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 border">
+            {activeRole === 'cashier' ? 'Role: Operador Caixa (MINTER)' : activeRole === 'customer' ? 'Role: Cliente' : 'Modo Simulador'}
+          </span>
+        </div>
         <p className="text-sm text-gray-500">{SEED_TENANT.branding.welcomeMessage}</p>
         <div data-testid="customer-tier" className="mt-2 text-xs font-semibold">
           Nível do Cliente: {calculateTier(loyaltyState.lifetimeStamps)}
         </div>
       </div>
 
-      {/* Cartão Fidelidade do Cliente */}
-      <div data-testid="customer-loyalty-card" className="border p-4 rounded-lg bg-emerald-50">
-        <h2 className="font-semibold text-emerald-800">Meu Cartão Fidelidade</h2>
-        <div data-testid="stamps-count" className="text-3xl font-bold text-emerald-900">
-          {loyaltyState.currentStamps}/{SEED_TENANT.loyaltyConfig.stampsGoal} Selos
-        </div>
-        <div className="text-sm text-emerald-700">
-          Total Histórico: {loyaltyState.lifetimeStamps} selos
-        </div>
-        {loyaltyState.currentStamps >= SEED_TENANT.loyaltyConfig.stampsGoal && (
-          <button
-            data-testid="customer-btn-redeem"
-            onClick={handleCustomerGenerateRedeemQR}
-            className="mt-3 bg-emerald-600 text-white px-4 py-2 rounded text-sm font-medium"
-          >
-            Gerar QR de Resgate
-          </button>
-        )}
-
-        {activeQRPayload && (
-          <div data-testid="dynamic-qr-display" className="mt-4 p-2 bg-white border border-emerald-300 rounded text-xs">
-            <div>QR Dinâmico Ativo ({activeQRPayload.action})</div>
-            <div>Nonce: {activeQRPayload.nonce}</div>
+      {/* Cartão Fidelidade do Cliente (Visível para Cliente ou Ambos) */}
+      {(activeRole === 'all' || activeRole === 'customer') && (
+        <div data-testid="customer-loyalty-card" className="border p-4 rounded-lg bg-emerald-50">
+          <div className="flex justify-between items-center mb-1">
+            <h2 className="font-semibold text-emerald-800">Meu Cartão Fidelidade</h2>
+            <span className="text-[10px] bg-emerald-200 text-emerald-800 px-2 py-0.5 rounded-full font-bold">
+              ROLE: CLIENTE
+            </span>
           </div>
-        )}
-      </div>
-
-      {/* Painel do Operador / Caixa */}
-      <div data-testid="operator-panel" className="border p-4 rounded-lg bg-gray-50">
-        <h2 className="font-semibold text-gray-800">Espaço Operador (Caixa)</h2>
-        <div className="flex gap-2 mt-2">
-          <button
-            data-testid="operator-btn-stamp"
-            onClick={handleOperatorAddStamp}
-            className="bg-blue-600 text-white px-3 py-1.5 rounded text-sm"
-          >
-            Confirmar +1 Selo
-          </button>
-          <button
-            data-testid="operator-btn-scan-redeem"
-            onClick={handleOperatorScanRedeemQR}
-            className="bg-purple-600 text-white px-3 py-1.5 rounded text-sm"
-          >
-            Escanear QR de Resgate
-          </button>
-        </div>
-        {operatorMessage && (
-          <div data-testid="operator-message" className="mt-2 text-sm text-blue-800">
-            {operatorMessage}
+          <div data-testid="stamps-count" className="text-3xl font-bold text-emerald-900">
+            {loyaltyState.currentStamps}/{SEED_TENANT.loyaltyConfig.stampsGoal} Selos
           </div>
-        )}
-      </div>
+          <div className="text-sm text-emerald-700">
+            Total Histórico: {loyaltyState.lifetimeStamps} selos
+          </div>
+          {loyaltyState.currentStamps >= SEED_TENANT.loyaltyConfig.stampsGoal && (
+            <button
+              data-testid="customer-btn-redeem"
+              onClick={handleCustomerGenerateRedeemQR}
+              className="mt-3 bg-emerald-600 text-white px-4 py-2 rounded text-sm font-medium hover:bg-emerald-700"
+            >
+              Gerar QR de Resgate
+            </button>
+          )}
 
-      {/* Autoatendimento & Catálogo */}
-      <div data-testid="self-service-catalog" className="space-y-4">
+          {activeQRPayload && (
+            <div data-testid="dynamic-qr-display" className="mt-4 p-3 bg-white border border-emerald-300 rounded text-xs shadow-sm">
+              <div className="font-semibold text-emerald-800">📱 QR Dinâmico Pronto para Escanear no Caixa</div>
+              <div className="text-gray-600">Ação: {activeQRPayload.action}</div>
+              <div className="text-gray-400 font-mono text-[10px] break-all">Nonce: {activeQRPayload.nonce}</div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Painel do Operador / Caixa (Visível para Caixa ou Ambos) */}
+      {(activeRole === 'all' || activeRole === 'cashier') && (
+        <div data-testid="operator-panel" className="border p-4 rounded-lg bg-blue-50 border-blue-200">
+          <div className="flex justify-between items-center mb-2">
+            <h2 className="font-semibold text-blue-900">Terminal do Caixa / Operador</h2>
+            <span className="text-[10px] bg-blue-200 text-blue-800 px-2 py-0.5 rounded-full font-bold">
+              ROLE: MINTER / OPERATOR
+            </span>
+          </div>
+          <p className="text-xs text-blue-700 mb-3">
+            Funções restritas a operadores autorizados com permissão on-chain para emitir e queimar selos.
+          </p>
+          <div className="flex gap-2">
+            <button
+              data-testid="operator-btn-stamp"
+              onClick={handleOperatorAddStamp}
+              className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded text-sm font-medium shadow-sm"
+            >
+              Confirmar +1 Selo (Emitir)
+            </button>
+            <button
+              data-testid="operator-btn-scan-redeem"
+              onClick={handleOperatorScanRedeemQR}
+              className="bg-purple-600 hover:bg-purple-700 text-white px-3 py-1.5 rounded text-sm font-medium shadow-sm"
+            >
+              Escanear QR de Resgate (Queimar)
+            </button>
+          </div>
+          {operatorMessage && (
+            <div data-testid="operator-message" className="mt-3 p-2 bg-white border border-blue-200 rounded text-sm text-blue-800 font-medium">
+              {operatorMessage}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Autoatendimento & Catálogo (Visível para Cliente ou Ambos) */}
+      {(activeRole === 'all' || activeRole === 'customer') && (
+        <div data-testid="self-service-catalog" className="space-y-4">
         <h2 className="font-semibold text-lg">Catálogo & Autoatendimento</h2>
         <div className="grid grid-cols-2 gap-2">
           {SEED_PRODUCTS.map((prod) => (
@@ -271,6 +341,7 @@ export const SeedStoreIntegrationDemo: React.FC = () => {
           )}
         </div>
       </div>
-    </div>
-  );
+    )}
+  </div>
+);
 };

@@ -16,6 +16,8 @@
     "test:e2e": "npm run test:e2e --workspaces --if-present",
     "create-wallet": "tsx scripts/create-wallet.ts",
     "deploy:contract": "tsx scripts/deploy-contract.ts",
+    "domain:setup": "tsx scripts/configure-domain-cors.ts",
+    "roles:configure": "tsx scripts/configure-roles.ts",
     "seed:sanity": "npx sanity datasets import ./packages/sanity-schemas/data/seed-cafeteria-aroma.ndjson production --project=8fgufitv --replace",
     "prepare": "husky"
   },
