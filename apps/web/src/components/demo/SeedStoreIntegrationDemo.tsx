@@ -25,9 +25,22 @@ export interface CartItem {
   useStamps: boolean;
 }
 
-export const SeedStoreIntegrationDemo: React.FC = () => {
-  // Controle de Visualização por Papel (Role)
-  const [activeRole, setActiveRole] = useState<'all' | 'customer' | 'cashier'>('all');
+export interface SeedStoreIntegrationDemoProps {
+  initialRole?: 'all' | 'customer' | 'cashier';
+}
+
+export const SeedStoreIntegrationDemo: React.FC<SeedStoreIntegrationDemoProps> = ({ initialRole }) => {
+  // Controle de Visualização por Papel (Role): detecta porta 5174 (caixa), 5173 (cliente) ou prop
+  const [activeRole, setActiveRole] = useState<'all' | 'customer' | 'cashier'>(() => {
+    if (initialRole) return initialRole;
+    if (typeof window !== 'undefined') {
+      const port = window.location?.port;
+      const search = window.location?.search || '';
+      if (port === '5174' || search.includes('role=caixa')) return 'cashier';
+      if (port === '5173' || search.includes('role=cliente')) return 'customer';
+    }
+    return 'all';
+  });
 
   // Estado do Cliente
   const [customerWallet] = useState('0x9876543210fedcba9876543210fedcba98765432');

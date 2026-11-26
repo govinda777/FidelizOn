@@ -9,6 +9,9 @@
   ],
   "scripts": {
     "dev": "npm run dev --workspace=@fidelizon/web",
+    "dev:cliente": "npm run dev --workspace=@fidelizon/web -- --port 5173",
+    "dev:caixa": "npm run dev --workspace=@fidelizon/web -- --port 5174",
+    "dev:dual": "npx concurrently -k -n \"CLIENTE,CAIXA\" -c \"green,blue\" \"npm run dev:cliente\" \"npm run dev:caixa\"",
     "build": "npm run build --workspaces --if-present",
     "lint": "npm run lint --workspaces --if-present",
     "test": "npm run test --workspaces --if-present",
