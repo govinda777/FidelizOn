@@ -1,0 +1,62 @@
+name: Deploy FidelizOn to GitHub Pages
+
+on:
+  push:
+    branches: ["main"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v5
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run unit & integration tests
+        run: npm run test:unit && npm run test:e2e
+
+      - name: Build Web Application
+        env:
+          VITE_THIRDWEB_CLIENT_ID: ${{ secrets.VITE_THIRDWEB_CLIENT_ID || 'f2f70da0a0864a3544298b1c89be825e' }}
+          VITE_LOYALTY_CONTRACT_ADDRESS: ${{ secrets.VITE_LOYALTY_CONTRACT_ADDRESS || '0x6883FD842E0b7901873a6a00042B602991a6bd2E' }}
+          VITE_SANITY_PROJECT_ID: ${{ secrets.VITE_SANITY_PROJECT_ID || '8fgufitv' }}
+          VITE_SANITY_DATASET: ${{ secrets.VITE_SANITY_DATASET || 'production' }}
+          VITE_ACTIVE_CHAIN: 'base-sepolia'
+        run: npm run build --workspace=@fidelizon/web
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: './apps/web/dist'
+
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v5
