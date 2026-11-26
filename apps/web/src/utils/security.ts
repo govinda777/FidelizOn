@@ -1,7 +1,7 @@
 export interface DynamicQRPayload {
   tenantSlug: string;
   customerWallet: string;
-  action: 'redeem_reward' | 'debit_prepaid' | 'burn_coupon';
+  action: 'redeem_reward' | 'earn_stamp' | 'debit_prepaid' | 'burn_coupon';
   timestamp: number;
   nonce: string;
   details?: Record<string, any>;

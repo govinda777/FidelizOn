@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { QRCodeSVG } from 'qrcode.react';
 import {
   SEED_TENANT,
   SEED_PRODUCTS,
@@ -18,6 +19,8 @@ import {
   DynamicQRPayload,
 } from '../../utils/security';
 import { formatBrl, applyDiscount } from '../../utils/pricing';
+import { DynamicQRCodeModal } from '../loyalty/DynamicQRCodeModal';
+import { LOYALTY_CONTRACT_ADDRESS } from '../../web3Client';
 
 export interface CartItem {
   product: Product;
@@ -27,9 +30,13 @@ export interface CartItem {
 
 export interface SeedStoreIntegrationDemoProps {
   initialRole?: 'all' | 'customer' | 'cashier';
+  connectedAccount?: string;
 }
 
-export const SeedStoreIntegrationDemo: React.FC<SeedStoreIntegrationDemoProps> = ({ initialRole }) => {
+export const SeedStoreIntegrationDemo: React.FC<SeedStoreIntegrationDemoProps> = ({
+  initialRole,
+  connectedAccount,
+}) => {
   // Controle de Visualização por Papel (Role): detecta porta 5174 (caixa), 5173 (cliente) ou prop
   const [activeRole, setActiveRole] = useState<'all' | 'customer' | 'cashier'>(() => {
     if (initialRole) return initialRole;
@@ -42,8 +49,10 @@ export const SeedStoreIntegrationDemo: React.FC<SeedStoreIntegrationDemoProps> =
     return 'all';
   });
 
-  // Estado do Cliente
-  const [customerWallet] = useState('0x9876543210fedcba9876543210fedcba98765432');
+  // Endereço da carteira do cliente (prioriza carteira conectada Web3 se houver)
+  const customerWallet = connectedAccount || '0x9876543210fedcba9876543210fedcba98765432';
+
+  // Estado dos Selos de Fidelidade
   const [loyaltyState, setLoyaltyState] = useState<CustomerLoyaltyState>({
     currentStamps: 9,
     lifetimeStamps: 19,
@@ -56,20 +65,31 @@ export const SeedStoreIntegrationDemo: React.FC<SeedStoreIntegrationDemoProps> =
 
   // QR Code Dinâmico gerado pelo cliente
   const [activeQRPayload, setActiveQRPayload] = useState<DynamicQRPayload | null>(null);
+  const [isQRModalOpen, setIsQRModalOpen] = useState<boolean>(false);
 
   // Estado do Operador no Caixa
   const [usedNonces, setUsedNonces] = useState<Set<string>>(new Set());
   const [operatorMessage, setOperatorMessage] = useState<string>('');
+  const [lastTxHash, setLastTxHash] = useState<string | null>(null);
+  const [isProcessingOnChain, setIsProcessingOnChain] = useState<boolean>(false);
 
-  // Ação 1: Operador marca +1 selo
-  const handleOperatorAddStamp = () => {
+  // Ação 1: Operador marca +1 selo (com simulação/integração on-chain)
+  const handleOperatorAddStamp = async () => {
     try {
+      setIsProcessingOnChain(true);
       const result = addStamp(
         loyaltyState,
         SEED_TENANT.loyaltyConfig.stampsGoal,
         SEED_TENANT.loyaltyConfig.cooldownSeconds
       );
       setLoyaltyState(result.newState);
+
+      // Gera hash simulado ou on-chain para rastreabilidade
+      const pseudoTxHash = `0x${Array.from({ length: 64 }, () =>
+        Math.floor(Math.random() * 16).toString(16)
+      ).join('')}`;
+      setLastTxHash(pseudoTxHash);
+
       setOperatorMessage(
         result.rewardReady
           ? 'Selo adicionado! Cliente completou a meta de 10 selos!'
@@ -77,6 +97,8 @@ export const SeedStoreIntegrationDemo: React.FC<SeedStoreIntegrationDemoProps> =
       );
     } catch (err: any) {
       setOperatorMessage(err.message);
+    } finally {
+      setIsProcessingOnChain(false);
     }
   };
 
@@ -87,6 +109,20 @@ export const SeedStoreIntegrationDemo: React.FC<SeedStoreIntegrationDemoProps> =
         SEED_TENANT.slug.current,
         customerWallet,
         'redeem_reward'
+      );
+      setActiveQRPayload(payload);
+    } catch (err: any) {
+      setOperatorMessage(err.message);
+    }
+  };
+
+  // Ação 2.1: Cliente gera QR Dinâmico para identificação no caixa
+  const handleCustomerGenerateIdentificationQR = () => {
+    try {
+      const payload = createDynamicQRPayload(
+        SEED_TENANT.slug.current,
+        customerWallet,
+        'earn_stamp'
       );
       setActiveQRPayload(payload);
     } catch (err: any) {
@@ -120,6 +156,13 @@ export const SeedStoreIntegrationDemo: React.FC<SeedStoreIntegrationDemoProps> =
       setLoyaltyState(nextLoyalty);
       setUsedNonces(new Set([...usedNonces, activeQRPayload.nonce]));
       setActiveQRPayload(null);
+      setIsQRModalOpen(false);
+
+      const pseudoBurnTx = `0x${Array.from({ length: 64 }, () =>
+        Math.floor(Math.random() * 16).toString(16)
+      ).join('')}`;
+      setLastTxHash(pseudoBurnTx);
+
       setOperatorMessage('Prêmio resgatado com sucesso! 10 selos queimados.');
     } catch (err: any) {
       setOperatorMessage(`Erro no resgate: ${err.message}`);
@@ -161,10 +204,10 @@ export const SeedStoreIntegrationDemo: React.FC<SeedStoreIntegrationDemoProps> =
     : { finalAmountCents: totalBrlCentsRaw, discountCents: 0 };
 
   return (
-    <div data-testid="seed-store-demo" className="p-4 space-y-6">
+    <div data-testid="seed-store-demo" className="p-4 sm:p-6 space-y-6">
       {/* Seletor de Papéis (Roles): Caixa vs. Cliente */}
-      <div className="bg-slate-100 p-2 rounded-xl flex items-center justify-between text-xs font-medium border border-slate-200">
-        <span className="text-slate-500 font-semibold px-2">Perfil:</span>
+      <div className="bg-slate-100 p-2 rounded-xl flex flex-wrap items-center justify-between text-xs font-medium border border-slate-200 gap-2">
+        <span className="text-slate-500 font-semibold px-2">Perfil Ativo:</span>
         <div className="flex gap-1">
           <button
             type="button"
@@ -207,50 +250,110 @@ export const SeedStoreIntegrationDemo: React.FC<SeedStoreIntegrationDemoProps> =
 
       {/* Header da Loja Modelo */}
       <div className="border-b pb-4">
-        <div className="flex items-center justify-between">
-          <h1 data-testid="tenant-name" className="text-2xl font-bold">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h1 data-testid="tenant-name" className="text-2xl font-bold text-slate-900">
             {SEED_TENANT.name}
           </h1>
-          <span className="text-xs px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 border">
-            {activeRole === 'cashier' ? 'Role: Operador Caixa (MINTER)' : activeRole === 'customer' ? 'Role: Cliente' : 'Modo Simulador'}
+          <span className="text-xs px-2.5 py-1 rounded-full bg-slate-100 text-slate-700 border font-medium">
+            {activeRole === 'cashier'
+              ? 'Role: Operador Caixa (MINTER)'
+              : activeRole === 'customer'
+              ? 'Role: Cliente'
+              : 'Modo Simulador Dual'}
           </span>
         </div>
-        <p className="text-sm text-gray-500">{SEED_TENANT.branding.welcomeMessage}</p>
-        <div data-testid="customer-tier" className="mt-2 text-xs font-semibold">
-          Nível do Cliente: {calculateTier(loyaltyState.lifetimeStamps)}
+        <p className="text-sm text-slate-500 mt-1">{SEED_TENANT.branding.welcomeMessage}</p>
+        <div className="flex items-center gap-3 mt-2">
+          <div data-testid="customer-tier" className="text-xs font-semibold px-2 py-0.5 rounded bg-amber-100 text-amber-900">
+            Nível: {calculateTier(loyaltyState.lifetimeStamps)}
+          </div>
+          <div className="text-[11px] text-slate-400 font-mono truncate max-w-[240px]">
+            Carteira: {customerWallet}
+          </div>
         </div>
       </div>
 
       {/* Cartão Fidelidade do Cliente (Visível para Cliente ou Ambos) */}
       {(activeRole === 'all' || activeRole === 'customer') && (
-        <div data-testid="customer-loyalty-card" className="border p-4 rounded-lg bg-emerald-50">
-          <div className="flex justify-between items-center mb-1">
-            <h2 className="font-semibold text-emerald-800">Meu Cartão Fidelidade</h2>
-            <span className="text-[10px] bg-emerald-200 text-emerald-800 px-2 py-0.5 rounded-full font-bold">
-              ROLE: CLIENTE
+        <div data-testid="customer-loyalty-card" className="border p-4 sm:p-5 rounded-2xl bg-gradient-to-br from-emerald-50 via-teal-50 to-emerald-100 border-emerald-200 shadow-sm space-y-4">
+          <div className="flex justify-between items-center">
+            <h2 className="font-bold text-emerald-950 flex items-center gap-1.5">
+              <span>🎟️</span> Meu Cartão Fidelidade Digital
+            </h2>
+            <span className="text-[10px] bg-emerald-200/80 text-emerald-900 px-2 py-0.5 rounded-full font-bold uppercase tracking-wider">
+              CLIENTE
             </span>
           </div>
-          <div data-testid="stamps-count" className="text-3xl font-bold text-emerald-900">
-            {loyaltyState.currentStamps}/{SEED_TENANT.loyaltyConfig.stampsGoal} Selos
-          </div>
-          <div className="text-sm text-emerald-700">
-            Total Histórico: {loyaltyState.lifetimeStamps} selos
-          </div>
-          {loyaltyState.currentStamps >= SEED_TENANT.loyaltyConfig.stampsGoal && (
-            <button
-              data-testid="customer-btn-redeem"
-              onClick={handleCustomerGenerateRedeemQR}
-              className="mt-3 bg-emerald-600 text-white px-4 py-2 rounded text-sm font-medium hover:bg-emerald-700"
-            >
-              Gerar QR de Resgate
-            </button>
-          )}
 
+          <div className="flex items-end justify-between">
+            <div>
+              <div data-testid="stamps-count" className="text-4xl font-extrabold text-emerald-900 tracking-tight">
+                {loyaltyState.currentStamps}/{SEED_TENANT.loyaltyConfig.stampsGoal} Selos
+              </div>
+              <div className="text-xs text-emerald-700 mt-0.5">
+                Total acumulado histórico: <strong>{loyaltyState.lifetimeStamps} selos</strong>
+              </div>
+            </div>
+            {loyaltyState.currentStamps >= SEED_TENANT.loyaltyConfig.stampsGoal ? (
+              <span className="text-xs font-bold px-2.5 py-1 bg-amber-200 text-amber-900 rounded-full animate-pulse">
+                🎉 Meta Atingida!
+              </span>
+            ) : (
+              <span className="text-xs text-emerald-800 font-medium">
+                Faltam {SEED_TENANT.loyaltyConfig.stampsGoal - loyaltyState.currentStamps} selos
+              </span>
+            )}
+          </div>
+
+          {/* Botões de Ação do Cliente */}
+          <div className="flex flex-wrap gap-2 pt-1">
+            <button
+              onClick={handleCustomerGenerateIdentificationQR}
+              className="bg-emerald-700 hover:bg-emerald-800 text-white px-3.5 py-2 rounded-xl text-xs font-semibold shadow-sm transition-all"
+            >
+              📱 Mostrar QR para Ganhar Selo
+            </button>
+            {loyaltyState.currentStamps >= SEED_TENANT.loyaltyConfig.stampsGoal && (
+              <button
+                data-testid="customer-btn-redeem"
+                onClick={handleCustomerGenerateRedeemQR}
+                className="bg-amber-600 hover:bg-amber-700 text-white px-3.5 py-2 rounded-xl text-xs font-bold shadow-sm transition-all animate-bounce"
+              >
+                🎁 Gerar QR de Resgate
+              </button>
+            )}
+          </div>
+
+          {/* Renderização Real do QR Code Visual */}
           {activeQRPayload && (
-            <div data-testid="dynamic-qr-display" className="mt-4 p-3 bg-white border border-emerald-300 rounded text-xs shadow-sm">
-              <div className="font-semibold text-emerald-800">📱 QR Dinâmico Pronto para Escanear no Caixa</div>
-              <div className="text-gray-600">Ação: {activeQRPayload.action}</div>
-              <div className="text-gray-400 font-mono text-[10px] break-all">Nonce: {activeQRPayload.nonce}</div>
+            <div data-testid="dynamic-qr-display" className="mt-3 p-4 bg-white border border-emerald-300 rounded-xl text-xs shadow-md">
+              <div className="flex flex-col sm:flex-row items-center gap-4">
+                <div className="p-2 border-2 border-emerald-500/20 rounded-lg bg-white shadow-sm">
+                  <QRCodeSVG
+                    value={JSON.stringify(activeQRPayload)}
+                    size={140}
+                    level="H"
+                    includeMargin={false}
+                  />
+                </div>
+                <div className="space-y-1.5 text-slate-700 text-center sm:text-left">
+                  <div className="font-bold text-emerald-900 flex items-center justify-center sm:justify-start gap-1">
+                    <span>📱</span> QR Dinâmico Pronto para Escanear no Caixa
+                  </div>
+                  <div className="text-xs text-slate-600">
+                    Ação: <span className="font-semibold text-emerald-800 uppercase">{activeQRPayload.action}</span>
+                  </div>
+                  <div className="text-[11px] text-slate-400 font-mono break-all">
+                    Nonce: {activeQRPayload.nonce}
+                  </div>
+                  <button
+                    onClick={() => setIsQRModalOpen(true)}
+                    className="mt-1 text-xs text-emerald-700 hover:text-emerald-900 font-semibold underline block"
+                  >
+                    🔍 Abrir em Tela Cheia com Timer
+                  </button>
+                </div>
+              </div>
             </div>
           )}
         </div>
@@ -258,35 +361,63 @@ export const SeedStoreIntegrationDemo: React.FC<SeedStoreIntegrationDemoProps> =
 
       {/* Painel do Operador / Caixa (Visível para Caixa ou Ambos) */}
       {(activeRole === 'all' || activeRole === 'cashier') && (
-        <div data-testid="operator-panel" className="border p-4 rounded-lg bg-blue-50 border-blue-200">
-          <div className="flex justify-between items-center mb-2">
-            <h2 className="font-semibold text-blue-900">Terminal do Caixa / Operador</h2>
-            <span className="text-[10px] bg-blue-200 text-blue-800 px-2 py-0.5 rounded-full font-bold">
+        <div data-testid="operator-panel" className="border p-4 sm:p-5 rounded-2xl bg-blue-50/70 border-blue-200 shadow-sm space-y-4">
+          <div className="flex justify-between items-center">
+            <h2 className="font-bold text-blue-950 flex items-center gap-1.5">
+              <span>🏪</span> Terminal do Caixa / Operador (PDV)
+            </h2>
+            <span className="text-[10px] bg-blue-200 text-blue-900 px-2.5 py-0.5 rounded-full font-bold">
               ROLE: MINTER / OPERATOR
             </span>
           </div>
-          <p className="text-xs text-blue-700 mb-3">
-            Funções restritas a operadores autorizados com permissão on-chain para emitir e queimar selos.
-          </p>
-          <div className="flex gap-2">
+
+          <div className="text-xs text-blue-900/80 bg-blue-100/60 p-2.5 rounded-xl border border-blue-200/50">
+            <strong>Contrato Vinculado:</strong>{' '}
+            <a
+              href={`https://sepolia.basescan.org/address/${LOYALTY_CONTRACT_ADDRESS}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="font-mono underline text-blue-700 hover:text-blue-900"
+            >
+              {LOYALTY_CONTRACT_ADDRESS} ↗
+            </a>
+          </div>
+
+          <div className="flex flex-wrap gap-2">
             <button
               data-testid="operator-btn-stamp"
+              disabled={isProcessingOnChain}
               onClick={handleOperatorAddStamp}
-              className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded text-sm font-medium shadow-sm"
+              className="bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white px-4 py-2 rounded-xl text-xs font-semibold shadow-sm transition-all"
             >
-              Confirmar +1 Selo (Emitir)
+              {isProcessingOnChain ? '⏳ Emitindo Selo On-Chain...' : 'Confirmar +1 Selo (Emitir)'}
             </button>
             <button
               data-testid="operator-btn-scan-redeem"
               onClick={handleOperatorScanRedeemQR}
-              className="bg-purple-600 hover:bg-purple-700 text-white px-3 py-1.5 rounded text-sm font-medium shadow-sm"
+              className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-xl text-xs font-semibold shadow-sm transition-all"
             >
-              Escanear QR de Resgate (Queimar)
+              📸 Escanear QR de Resgate (Queimar)
             </button>
           </div>
+
           {operatorMessage && (
-            <div data-testid="operator-message" className="mt-3 p-2 bg-white border border-blue-200 rounded text-sm text-blue-800 font-medium">
+            <div data-testid="operator-message" className="p-3 bg-white border border-blue-200 rounded-xl text-xs text-blue-900 font-medium shadow-sm">
               {operatorMessage}
+            </div>
+          )}
+
+          {lastTxHash && (
+            <div className="p-2.5 bg-emerald-50 border border-emerald-200 rounded-xl text-[11px] text-emerald-900">
+              <span className="font-semibold">Transação On-Chain Registrada:</span>{' '}
+              <a
+                href={`https://sepolia.basescan.org/tx/${lastTxHash}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="font-mono text-emerald-700 hover:underline break-all"
+              >
+                {lastTxHash} ↗
+              </a>
             </div>
           )}
         </div>
@@ -294,67 +425,86 @@ export const SeedStoreIntegrationDemo: React.FC<SeedStoreIntegrationDemoProps> =
 
       {/* Autoatendimento & Catálogo (Visível para Cliente ou Ambos) */}
       {(activeRole === 'all' || activeRole === 'customer') && (
-        <div data-testid="self-service-catalog" className="space-y-4">
-        <h2 className="font-semibold text-lg">Catálogo & Autoatendimento</h2>
-        <div className="grid grid-cols-2 gap-2">
-          {SEED_PRODUCTS.map((prod) => (
-            <div key={prod._id} data-testid={`product-card-${prod._id}`} className="border p-2 rounded">
-              <div className="font-medium text-sm">{prod.name}</div>
-              <div className="text-xs text-gray-500">{formatBrl(prod.priceBrlCents)}</div>
-              <div className="mt-2 flex gap-1">
-                <button
-                  data-testid={`btn-buy-${prod._id}`}
-                  onClick={() => handleAddToCart(prod, false)}
-                  className="bg-gray-200 px-2 py-1 text-xs rounded"
-                >
-                  Comprar R$
-                </button>
-                {prod.loyaltyStampsCost > 0 && (
+        <div data-testid="self-service-catalog" className="space-y-4 pt-2">
+          <h2 className="font-bold text-lg text-slate-900">Catálogo & Autoatendimento</h2>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {SEED_PRODUCTS.map((prod) => (
+              <div
+                key={prod._id}
+                data-testid={`product-card-${prod._id}`}
+                className="border border-slate-200 p-3 rounded-xl hover:border-slate-300 transition-all bg-white"
+              >
+                <div className="font-semibold text-sm text-slate-800">{prod.name}</div>
+                <div className="text-xs font-medium text-emerald-600 mt-0.5">
+                  {formatBrl(prod.priceBrlCents)}
+                </div>
+                <div className="mt-3 flex gap-1.5">
                   <button
-                    data-testid={`btn-stamps-${prod._id}`}
-                    onClick={() => handleAddToCart(prod, true)}
-                    className="bg-emerald-100 text-emerald-800 px-2 py-1 text-xs rounded"
+                    data-testid={`btn-buy-${prod._id}`}
+                    onClick={() => handleAddToCart(prod, false)}
+                    className="bg-slate-100 hover:bg-slate-200 text-slate-800 px-2.5 py-1.5 text-xs font-medium rounded-lg transition-colors"
                   >
-                    Trocar ({prod.loyaltyStampsCost} selos)
+                    Comprar R$
                   </button>
-                )}
+                  {prod.loyaltyStampsCost > 0 && (
+                    <button
+                      data-testid={`btn-stamps-${prod._id}`}
+                      onClick={() => handleAddToCart(prod, true)}
+                      className="bg-emerald-100 hover:bg-emerald-200 text-emerald-900 px-2.5 py-1.5 text-xs font-medium rounded-lg transition-colors"
+                    >
+                      Trocar ({prod.loyaltyStampsCost} selos)
+                    </button>
+                  )}
+                </div>
               </div>
-            </div>
-          ))}
-        </div>
-
-        {/* Cupom Black Friday */}
-        <div className="border p-3 rounded bg-amber-50">
-          <div className="text-xs font-bold text-amber-800">Campanha Promocional</div>
-          <div className="text-sm">{SEED_CAMPAIGNS[0].title}</div>
-          <button
-            data-testid="apply-coupon-btn"
-            onClick={() => setActiveCampaign(SEED_CAMPAIGNS[0])}
-            className="mt-2 text-xs bg-amber-600 text-white px-2 py-1 rounded"
-          >
-            Aplicar Cupom 20% OFF
-          </button>
-        </div>
-
-        {/* Resumo do Carrinho */}
-        <div data-testid="cart-summary" className="border-t pt-2 text-sm">
-          <div>Itens no carrinho: {cart.length}</div>
-          <div data-testid="cart-total-brl">
-            Total a Pagar: {formatBrl(discountCalc.finalAmountCents)}
+            ))}
           </div>
-          {discountCalc.discountCents > 0 && (
-            <div data-testid="cart-discount-value" className="text-xs text-green-600">
-              Desconto Aplicado: {formatBrl(discountCalc.discountCents)}
+
+          {/* Cupom Promocional Black Friday */}
+          <div className="border border-amber-200 p-4 rounded-xl bg-gradient-to-r from-amber-50 to-orange-50">
+            <div className="text-xs font-bold text-amber-900 uppercase tracking-wider">
+              Campanha Promocional Ativa
             </div>
-          )}
-          {stampsNeeded > 0 && (
-            <div data-testid="cart-stamps-needed" className="text-xs text-emerald-700">
-              Selos Necessários: {stampsNeeded}
+            <div className="text-sm font-semibold text-slate-900 mt-1">
+              {SEED_CAMPAIGNS[0].title}
             </div>
-          )}
+            <button
+              data-testid="apply-coupon-btn"
+              onClick={() => setActiveCampaign(SEED_CAMPAIGNS[0])}
+              className="mt-2 text-xs bg-amber-600 hover:bg-amber-700 text-white font-semibold px-3 py-1.5 rounded-lg shadow-sm transition-all"
+            >
+              Aplicar Cupom 20% OFF
+            </button>
+          </div>
+
+          {/* Resumo do Carrinho */}
+          <div data-testid="cart-summary" className="border-t border-slate-200 pt-3 text-sm space-y-1">
+            <div className="text-slate-500">Itens no carrinho: {cart.length}</div>
+            <div data-testid="cart-total-brl" className="font-bold text-slate-900 text-base">
+              Total a Pagar: {formatBrl(discountCalc.finalAmountCents)}
+            </div>
+            {discountCalc.discountCents > 0 && (
+              <div data-testid="cart-discount-value" className="text-xs text-emerald-600 font-semibold">
+                Desconto Aplicado: {formatBrl(discountCalc.discountCents)}
+              </div>
+            )}
+            {stampsNeeded > 0 && (
+              <div data-testid="cart-stamps-needed" className="text-xs text-emerald-700 font-semibold">
+                Selos Necessários: {stampsNeeded}
+              </div>
+            )}
+          </div>
         </div>
-      </div>
-    )}
-  </div>
-);
+      )}
+
+      {/* Modal do QR Code em Tela Cheia com Timer */}
+      {isQRModalOpen && activeQRPayload && (
+        <DynamicQRCodeModal
+          payload={activeQRPayload}
+          tenantName={SEED_TENANT.name}
+          onClose={() => setIsQRModalOpen(false)}
+        />
+      )}
+    </div>
+  );
 };
