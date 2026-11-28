@@ -2,30 +2,31 @@ import React, { useState } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
 import { useReadContract } from 'thirdweb/react';
 import { balanceOf } from 'thirdweb/extensions/erc1155';
-import { loyaltyContract } from '../../web3Client';
+import { getTenantContract } from '../../web3Client';
 import { calculateTier } from '../../utils/loyalty';
 import { createDynamicQRPayload, DynamicQRPayload } from '../../utils/security';
 import { DynamicQRCodeModal } from './DynamicQRCodeModal';
-import { Tenant } from '../../data/seedStore';
+import { Tenant } from '../../types/tenant';
 
 interface LoyaltyCardProps {
   tenant: Tenant;
   customerWallet: string;
   isConnected: boolean;
-  localStampsFallback?: number;
 }
 
 export const LoyaltyCard: React.FC<LoyaltyCardProps> = ({
   tenant,
   customerWallet,
   isConnected,
-  localStampsFallback = 9,
 }) => {
-  // Consulta de Saldo On-Chain Real no Contrato DropERC1155 (Token ID 0: Selos)
+  // Contrato do Tenant vinculado dinamicamente pelo endereço configurado no Sanity
+  const contract = getTenantContract(tenant.web3?.loyaltyContractAddress);
+
+  // Leitura do saldo on-chain real de selos (Token ID 0) para a carteira do cliente
   const { data: onChainBalance, isLoading: isReadingBalance } = useReadContract(
     balanceOf,
     {
-      contract: loyaltyContract,
+      contract,
       owner: customerWallet,
       tokenId: 0n,
     }
@@ -33,9 +34,9 @@ export const LoyaltyCard: React.FC<LoyaltyCardProps> = ({
 
   const stampsCount = isConnected && onChainBalance !== undefined
     ? Number(onChainBalance)
-    : localStampsFallback;
+    : 0;
 
-  const stampsGoal = tenant.loyaltyConfig.stampsGoal || 10;
+  const stampsGoal = tenant.loyaltyConfig?.stampsGoal || 10;
   const isGoalReached = stampsCount >= stampsGoal;
 
   const [activeQRPayload, setActiveQRPayload] = useState<DynamicQRPayload | null>(null);
@@ -52,8 +53,8 @@ export const LoyaltyCard: React.FC<LoyaltyCardProps> = ({
         <h2 className="font-bold text-emerald-950 flex items-center gap-1.5">
           <span>🎟️</span> Cartão Fidelidade Digital
         </h2>
-        <span className="text-[10px] bg-emerald-200/80 text-emerald-900 px-2 py-0.5 rounded-full font-bold uppercase tracking-wider">
-          CLIENTE
+        <span className="text-[10px] bg-emerald-200/80 text-emerald-900 px-2.5 py-0.5 rounded-full font-bold uppercase tracking-wider">
+          {tenant.name}
         </span>
       </div>
 
@@ -69,7 +70,7 @@ export const LoyaltyCard: React.FC<LoyaltyCardProps> = ({
                 Saldo On-Chain na Base Sepolia {isReadingBalance && '(atualizando...)'}
               </span>
             ) : (
-              <span>Modo Simulação (Conecte sua carteira para ver saldo on-chain)</span>
+              <span className="text-slate-500">Conecte sua carteira para carregar seu saldo on-chain</span>
             )}
           </div>
         </div>
@@ -86,7 +87,7 @@ export const LoyaltyCard: React.FC<LoyaltyCardProps> = ({
         </div>
       </div>
 
-      {/* Grid Visual de Selos */}
+      {/* Régua Visual de Selos Dinâmica */}
       <div className="grid grid-cols-5 sm:grid-cols-10 gap-1.5 pt-2">
         {Array.from({ length: stampsGoal }).map((_, idx) => {
           const isStamped = idx < stampsCount;
@@ -120,7 +121,7 @@ export const LoyaltyCard: React.FC<LoyaltyCardProps> = ({
             onClick={() => handleGenerateQR('redeem_reward')}
             className="bg-amber-600 hover:bg-amber-700 text-white px-3.5 py-2 rounded-xl text-xs font-bold shadow-sm transition-all animate-bounce flex items-center gap-1.5"
           >
-            <span>🎁</span> Gerar QR de Resgate do Café
+            <span>🎁</span> Resgatar {tenant.loyaltyConfig.rewardTitle}
           </button>
         )}
       </div>
@@ -139,7 +140,7 @@ export const LoyaltyCard: React.FC<LoyaltyCardProps> = ({
             </div>
             <div className="space-y-1 text-slate-700 text-center sm:text-left flex-1">
               <div className="font-bold text-emerald-900 flex items-center justify-center sm:justify-start gap-1">
-                <span>📱</span> QR Dinâmico Pronto para Escanear
+                <span>📱</span> QR Dinâmico de Identificação no Caixa
               </div>
               <div className="text-xs text-slate-600">
                 Ação: <span className="font-semibold text-emerald-800 uppercase">{activeQRPayload.action}</span>

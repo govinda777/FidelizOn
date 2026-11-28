@@ -1,17 +1,20 @@
 import React, { useState, useEffect } from 'react';
 import { ConnectButton, useActiveAccount } from 'thirdweb/react';
 import { baseSepolia } from 'thirdweb/chains';
-import { client, LOYALTY_CONTRACT_ADDRESS } from './web3Client';
+import { client, DEFAULT_CONTRACT_ADDRESS } from './web3Client';
 import { LoyaltyCard } from './components/loyalty/LoyaltyCard';
 import { CashierTerminal } from './components/pos/CashierTerminal';
 import { ProductCatalog } from './components/catalog/ProductCatalog';
-import { SEED_TENANT, Tenant } from './data/seedStore';
-import { getTenantBySlug } from './services/storeService';
+import { Tenant } from './types/tenant';
+import { listTenants, getTenantBySlug } from './services/storeService';
 
 export const App: React.FC = () => {
   const account = useActiveAccount();
-  const [selectedStoreSlug, setSelectedStoreSlug] = useState<string>('cafeteria-aroma');
-  const [tenant, setTenant] = useState<Tenant>(SEED_TENANT);
+  const [tenants, setTenants] = useState<Tenant[]>([]);
+  const [selectedTenantSlug, setSelectedTenantSlug] = useState<string>('cafeteria-aroma');
+  const [currentTenant, setCurrentTenant] = useState<Tenant | null>(null);
+  const [isLoadingTenants, setIsLoadingTenants] = useState<boolean>(true);
+
   const [activeRole, setActiveRole] = useState<'all' | 'customer' | 'cashier'>(() => {
     if (typeof window !== 'undefined') {
       const port = window.location?.port;
@@ -22,20 +25,49 @@ export const App: React.FC = () => {
     return 'all';
   });
 
-  // Carrega dados da loja ativa a partir do Sanity CMS
+  // 1. Carrega todos os estabelecimentos (Tenants) ativos diretamente do Sanity CMS
   useEffect(() => {
     let isMounted = true;
-    getTenantBySlug(selectedStoreSlug).then((data) => {
-      if (isMounted && data) {
-        setTenant(data);
-      }
-    });
+    setIsLoadingTenants(true);
+    listTenants()
+      .then((items) => {
+        if (isMounted) {
+          setTenants(items);
+          if (items.length > 0) {
+            // Seleciona o primeiro ou o que coincidir com o slug atual
+            const match = items.find((t) => t.slug?.current === selectedTenantSlug) || items[0];
+            setSelectedTenantSlug(match.slug.current);
+            setCurrentTenant(match);
+          }
+        }
+      })
+      .catch((err) => {
+        console.error('Erro ao buscar lista de tenants no Sanity:', err);
+      })
+      .finally(() => {
+        if (isMounted) setIsLoadingTenants(false);
+      });
+
     return () => {
       isMounted = false;
     };
-  }, [selectedStoreSlug]);
+  }, []);
+
+  // 2. Quando o usuário troca de tenant no select, carrega os dados completos desse tenant
+  const handleTenantChange = async (slug: string) => {
+    setSelectedTenantSlug(slug);
+    const found = tenants.find((t) => t.slug?.current === slug);
+    if (found) {
+      setCurrentTenant(found);
+    } else {
+      const fetched = await getTenantBySlug(slug);
+      if (fetched) setCurrentTenant(fetched);
+    }
+  };
 
   const customerWalletAddress = account?.address || '0x9876543210fedcba9876543210fedcba98765432';
+  const tenantContractAddress =
+    currentTenant?.web3?.loyaltyContractAddress || DEFAULT_CONTRACT_ADDRESS;
 
   return (
     <div data-testid="seed-store-demo" className="min-h-screen bg-slate-100 text-slate-900 pb-16 font-sans">
@@ -50,21 +82,29 @@ export const App: React.FC = () => {
                 FidelizOn
               </span>
               <span className="ml-1 text-[10px] font-semibold uppercase px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800">
-                Web3 Loyalty
+                Multi-Tenant Web3
               </span>
             </div>
           </div>
 
-          {/* Seletor de Loja (Tenant Sanity CMS) */}
+          {/* Seletor Dinâmico de Estabelecimentos (Tenants do Sanity CMS) */}
           <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1 text-xs">
-            <span className="text-slate-500 font-medium">Loja Ativa:</span>
-            <select
-              value={selectedStoreSlug}
-              onChange={(e) => setSelectedStoreSlug(e.target.value)}
-              className="bg-transparent font-semibold text-slate-800 focus:outline-none cursor-pointer"
-            >
-              <option value="cafeteria-aroma">☕ {tenant.name} (Seed)</option>
-            </select>
+            <span className="text-slate-500 font-medium">Estabelecimento:</span>
+            {isLoadingTenants ? (
+              <span className="text-slate-400">Carregando lojas...</span>
+            ) : (
+              <select
+                value={selectedTenantSlug}
+                onChange={(e) => handleTenantChange(e.target.value)}
+                className="bg-transparent font-semibold text-slate-800 focus:outline-none cursor-pointer"
+              >
+                {tenants.map((t) => (
+                  <option key={t._id} value={t.slug.current}>
+                    🏪 {t.name}
+                  </option>
+                ))}
+              </select>
+            )}
           </div>
 
           {/* Botão Oficial de Login Web3 */}
@@ -74,7 +114,7 @@ export const App: React.FC = () => {
               chain={baseSepolia}
               appMetadata={{
                 name: 'FidelizOn',
-                description: 'Plataforma Web3 de Fidelidade e Autoatendimento B2B2C',
+                description: 'Plataforma Web3 Multi-Tenant de Fidelidade e Autoatendimento',
                 url: 'https://govinda777.github.io/FidelizOn/',
               }}
               connectButton={{
@@ -85,17 +125,17 @@ export const App: React.FC = () => {
           </div>
         </div>
 
-        {/* Faixa Informativa do Smart Contract Base Sepolia */}
+        {/* Faixa Informativa do Smart Contract On-Chain do Tenant */}
         <div className="bg-slate-900 text-white text-[11px] py-1.5 px-4 text-center flex flex-wrap items-center justify-center gap-2">
           <span className="inline-block w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
-          <span className="text-slate-300">Contrato DropERC1155 (Base Sepolia):</span>
+          <span className="text-slate-300">Contrato DropERC1155 do Estabelecimento:</span>
           <a
-            href={`https://sepolia.basescan.org/address/${LOYALTY_CONTRACT_ADDRESS}`}
+            href={`https://sepolia.basescan.org/address/${tenantContractAddress}`}
             target="_blank"
             rel="noopener noreferrer"
             className="font-mono text-emerald-400 hover:text-emerald-300 underline font-medium"
           >
-            {LOYALTY_CONTRACT_ADDRESS.slice(0, 10)}...{LOYALTY_CONTRACT_ADDRESS.slice(-8)} ↗
+            {tenantContractAddress.slice(0, 10)}...{tenantContractAddress.slice(-8)} ↗
           </a>
           <span className="text-slate-400">|</span>
           <span className="text-slate-300">
@@ -155,47 +195,55 @@ export const App: React.FC = () => {
           </div>
         </div>
 
-        {/* Card Principal da Loja */}
-        <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 space-y-6">
-          {/* Header da Loja */}
-          <div className="border-b pb-4">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <h1 data-testid="tenant-name" className="text-2xl font-bold text-slate-900">
-                {tenant.name}
-              </h1>
-              <span className="text-xs px-2.5 py-1 rounded-full bg-slate-100 text-slate-700 border font-medium">
-                {activeRole === 'cashier'
-                  ? 'Role: Operador Caixa (MINTER)'
-                  : activeRole === 'customer'
-                  ? 'Role: Cliente'
-                  : 'Modo Simulador Dual'}
-              </span>
+        {/* Card Principal da Loja Selecionada */}
+        {currentTenant ? (
+          <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 space-y-6">
+            {/* Header da Loja */}
+            <div className="border-b pb-4">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <h1 data-testid="tenant-name" className="text-2xl font-bold text-slate-900">
+                  {currentTenant.name}
+                </h1>
+                <span className="text-xs px-2.5 py-1 rounded-full bg-slate-100 text-slate-700 border font-medium">
+                  {activeRole === 'cashier'
+                    ? 'Role: Operador Caixa (MINTER)'
+                    : activeRole === 'customer'
+                    ? 'Role: Cliente'
+                    : 'Modo Simulador Dual'}
+                </span>
+              </div>
+              <p className="text-sm text-slate-500 mt-1">
+                {currentTenant.branding?.welcomeMessage || 'Programa de Fidelidade e Autoatendimento'}
+              </p>
             </div>
-            <p className="text-sm text-slate-500 mt-1">{tenant.branding.welcomeMessage}</p>
+
+            {/* Cartão Fidelidade do Cliente */}
+            {(activeRole === 'all' || activeRole === 'customer') && (
+              <LoyaltyCard
+                tenant={currentTenant}
+                customerWallet={customerWalletAddress}
+                isConnected={!!account}
+              />
+            )}
+
+            {/* Terminal do Caixa / Operador */}
+            {(activeRole === 'all' || activeRole === 'cashier') && (
+              <CashierTerminal
+                tenant={currentTenant}
+                defaultCustomerWallet={customerWalletAddress}
+              />
+            )}
+
+            {/* Catálogo de Produtos e Autoatendimento */}
+            {(activeRole === 'all' || activeRole === 'customer') && (
+              <ProductCatalog tenantSlug={selectedTenantSlug} />
+            )}
           </div>
-
-          {/* Cartão Fidelidade do Cliente (Visível em modo Cliente ou Ambos) */}
-          {(activeRole === 'all' || activeRole === 'customer') && (
-            <LoyaltyCard
-              tenant={tenant}
-              customerWallet={customerWalletAddress}
-              isConnected={!!account}
-            />
-          )}
-
-          {/* Terminal do Caixa / Operador (Visível em modo Caixa ou Ambos) */}
-          {(activeRole === 'all' || activeRole === 'cashier') && (
-            <CashierTerminal
-              tenant={tenant}
-              defaultCustomerWallet={customerWalletAddress}
-            />
-          )}
-
-          {/* Catálogo de Produtos e Autoatendimento (Visível em modo Cliente ou Ambos) */}
-          {(activeRole === 'all' || activeRole === 'customer') && (
-            <ProductCatalog tenantSlug={selectedStoreSlug} />
-          )}
-        </div>
+        ) : (
+          <div className="p-8 text-center bg-white rounded-2xl border text-slate-500 text-sm">
+            Carregando estabelecimento do Sanity CMS...
+          </div>
+        )}
       </main>
     </div>
   );

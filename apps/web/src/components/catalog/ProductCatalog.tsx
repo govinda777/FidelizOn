@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Product, Campaign, SEED_PRODUCTS, SEED_CAMPAIGNS } from '../../data/seedStore';
+import { Product, Campaign } from '../../types/tenant';
 import { getProductsByTenant, getCampaignsByTenant } from '../../services/storeService';
 import { formatBrl, applyDiscount } from '../../utils/pricing';
 
@@ -14,8 +14,8 @@ interface ProductCatalogProps {
 }
 
 export const ProductCatalog: React.FC<ProductCatalogProps> = ({ tenantSlug }) => {
-  const [products, setProducts] = useState<Product[]>(SEED_PRODUCTS);
-  const [campaigns, setCampaigns] = useState<Campaign[]>(SEED_CAMPAIGNS);
+  const [products, setProducts] = useState<Product[]>([]);
+  const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [cart, setCart] = useState<CartItem[]>([]);
   const [activeCampaign, setActiveCampaign] = useState<Campaign | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -30,11 +30,11 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({ tenantSlug }) =>
           getCampaignsByTenant(tenantSlug),
         ]);
         if (isMounted) {
-          if (fetchedProducts && fetchedProducts.length > 0) setProducts(fetchedProducts);
-          if (fetchedCampaigns && fetchedCampaigns.length > 0) setCampaigns(fetchedCampaigns);
+          setProducts(fetchedProducts || []);
+          setCampaigns(fetchedCampaigns || []);
         }
       } catch (e) {
-        console.warn('Usando catálogo local:', e);
+        console.error('Erro ao carregar catálogo do Sanity:', e);
       } finally {
         if (isMounted) setIsLoading(false);
       }
@@ -82,9 +82,15 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({ tenantSlug }) =>
       <div className="flex items-center justify-between">
         <h2 className="font-bold text-lg text-slate-900">Catálogo & Autoatendimento</h2>
         <span className="text-[11px] text-slate-500 font-medium">
-          {isLoading ? 'Sincronizando Sanity CMS...' : '🟢 Conectado ao Sanity Content Lake'}
+          {isLoading ? 'Sincronizando Sanity CMS...' : `🟢 ${products.length} produtos carregados do Sanity`}
         </span>
       </div>
+
+      {products.length === 0 && !isLoading && (
+        <div className="text-center py-6 text-slate-400 text-xs">
+          Nenhum produto cadastrado para este estabelecimento no Sanity CMS.
+        </div>
+      )}
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         {products.map((prod) => (
@@ -130,7 +136,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({ tenantSlug }) =>
       {campaigns.length > 0 && (
         <div className="border border-amber-200 p-4 rounded-xl bg-gradient-to-r from-amber-50 to-orange-50">
           <div className="text-xs font-bold text-amber-900 uppercase tracking-wider">
-            Campanha Promocional Sanity CMS
+            Campanha Promocional Ativa
           </div>
           <div className="text-sm font-semibold text-slate-900 mt-1">
             {campaigns[0].title}

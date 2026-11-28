@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
 import { useSendTransaction, useActiveAccount } from 'thirdweb/react';
 import { claimTo, burn } from 'thirdweb/extensions/erc1155';
-import { loyaltyContract, LOYALTY_CONTRACT_ADDRESS } from '../../web3Client';
+import { getTenantContract, DEFAULT_CONTRACT_ADDRESS } from '../../web3Client';
 import { DynamicQRPayload, validateDynamicQRPayload } from '../../utils/security';
-import { Tenant } from '../../data/seedStore';
+import { Tenant } from '../../types/tenant';
 
 interface CashierTerminalProps {
   tenant: Tenant;
@@ -21,6 +21,9 @@ export const CashierTerminal: React.FC<CashierTerminalProps> = ({
   const account = useActiveAccount();
   const { mutateAsync: sendTx, isPending: isTxPending } = useSendTransaction();
 
+  const contractAddress = tenant.web3?.loyaltyContractAddress || DEFAULT_CONTRACT_ADDRESS;
+  const contract = getTenantContract(contractAddress);
+
   const [customerInput, setCustomerInput] = useState<string>(defaultCustomerWallet);
   const [operatorMessage, setOperatorMessage] = useState<string>('');
   const [lastTxHash, setLastTxHash] = useState<string | null>(null);
@@ -32,9 +35,9 @@ export const CashierTerminal: React.FC<CashierTerminalProps> = ({
       setOperatorMessage('⏳ Enviando transação de selo para a Base Sepolia...');
 
       if (account) {
-        // Disparo Real de Transação On-Chain para o Contrato DropERC1155
+        // Disparo Real de Transação On-Chain para o Contrato DropERC1155 do Tenant
         const tx = claimTo({
-          contract: loyaltyContract,
+          contract,
           to: customerInput,
           tokenId: 0n,
           quantity: 1n,
@@ -42,9 +45,8 @@ export const CashierTerminal: React.FC<CashierTerminalProps> = ({
 
         const receipt = await sendTx(tx);
         setLastTxHash(receipt.transactionHash);
-        setOperatorMessage('🎉 Selo on-chain confirmado com sucesso na Base Sepolia!');
+        setOperatorMessage('🎉 Selo on-chain emitido com sucesso na Base Sepolia!');
       } else {
-        // Modo local quando operador não conectou carteira
         const simulatedHash = `0x${Array.from({ length: 64 }, () =>
           Math.floor(Math.random() * 16).toString(16)
         ).join('')}`;
@@ -75,7 +77,7 @@ export const CashierTerminal: React.FC<CashierTerminalProps> = ({
 
       if (account) {
         const burnTx = burn({
-          contract: loyaltyContract,
+          contract,
           account: account.address,
           id: 0n,
           value: 10n,
@@ -105,19 +107,19 @@ export const CashierTerminal: React.FC<CashierTerminalProps> = ({
           <span>🏪</span> Terminal do Caixa / Operador (PDV)
         </h2>
         <span className="text-[10px] bg-blue-200 text-blue-900 px-2.5 py-0.5 rounded-full font-bold">
-          ROLE: MINTER / OPERATOR
+          {tenant.name}
         </span>
       </div>
 
       <div className="text-xs text-blue-900/80 bg-blue-100/60 p-2.5 rounded-xl border border-blue-200/50">
-        <strong>Contrato Vinculado:</strong>{' '}
+        <strong>Contrato do Estabelecimento:</strong>{' '}
         <a
-          href={`https://sepolia.basescan.org/address/${LOYALTY_CONTRACT_ADDRESS}`}
+          href={`https://sepolia.basescan.org/address/${contractAddress}`}
           target="_blank"
           rel="noopener noreferrer"
           className="font-mono underline text-blue-700 hover:text-blue-900"
         >
-          {LOYALTY_CONTRACT_ADDRESS.slice(0, 10)}...{LOYALTY_CONTRACT_ADDRESS.slice(-8)} ↗
+          {contractAddress.slice(0, 10)}...{contractAddress.slice(-8)} ↗
         </a>
       </div>
 

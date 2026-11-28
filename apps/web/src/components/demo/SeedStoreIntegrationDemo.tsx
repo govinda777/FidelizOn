@@ -4,9 +4,8 @@ import {
   SEED_TENANT,
   SEED_PRODUCTS,
   SEED_CAMPAIGNS,
-  Product,
-  Campaign,
 } from '../../data/seedStore';
+import { Product, Campaign } from '../../types/tenant';
 import {
   CustomerLoyaltyState,
   addStamp,
