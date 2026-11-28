@@ -12,8 +12,10 @@ Construído sobre uma infraestrutura leve, ágil e de baixo custo operacional:
 
 ## 📖 Especificação Canônica e Arquitetura
 
-Para conhecer a arquitetura técnica completa, modelo de dados, fluxos de segurança e contratos inteligentes, consulte:
+Para conhecer a arquitetura técnica completa, modelo de dados, fluxos de segurança e administração da plataforma, consulte:
+- [Manual de Administração da Plataforma FidelizOn (Governança, Roles e Multi-Tenant)](docs/ADMINISTRACAO_DA_PLATAFORMA.md)
 - [RFC-001: Arquitetura SaaS B2B2C da Plataforma FidelizOn](docs/rfc_001_arquitetura_saas_b2b2c_da_plataforma_fidelizon.md)
+- [Guia de Configuração Thirdweb & Web3 Invisível](docs/THIRDWEB_CONFIG_GUIDE.md)
 
 ---
 
